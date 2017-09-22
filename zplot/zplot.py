@@ -2261,7 +2261,8 @@ class canvas:
     # Internal routine to draw arrow head at end of line segment
     #
     def __arrowhead(self, coords, closepath, arrowheadlength, arrowheadwidth,
-                    arrowlinecolor, arrowlinewidth, arrowfill, arrowfillcolor):
+                    arrowlinecolor, arrowlinewidth, arrowfill, arrowfillcolor,
+                    arrowdrawonline):
         c = len(coords)
         # start with last line segment of the line
         if closepath:
@@ -2271,8 +2272,14 @@ class canvas:
         xdiff, ydiff = float(fx) - float(sx), float(fy) - float(sy)
         # Now project a point out from the last point (fx,fy) to 'arrowheadlength' away
         angle = math.atan2(ydiff, xdiff)
-        px, py = fx + arrowheadlength * math.cos(angle), \
-                 fy + arrowheadlength * math.sin(angle)
+        px, py = fx, fy
+        # Decide if we should project after or onto the line
+        if arrowdrawonline:
+            fx, fy = px - arrowheadlength * math.cos(angle), \
+                     py - arrowheadlength * math.sin(angle)
+        else:
+            px, py = fx + arrowheadlength * math.cos(angle), \
+                     fy + arrowheadlength * math.sin(angle)
         # now find other two points of arrowhead, by rotating 90 degrees both
         # ways and projecting it out from the final x,y points again
         angle_left  = angle + math.radians(90.0)
@@ -2344,6 +2351,9 @@ class canvas:
 
              # Style to use. 'normal' is one option. There are no others.
              arrowstyle      = 'normal',
+
+             # Draw arrow at past or on the line
+             arrowdrawonline = False,
             ):
         drawer = self.drawer
 
@@ -2379,7 +2389,8 @@ class canvas:
                              arrowlinecolor=arrowlinecolor,
                              arrowlinewidth=arrowlinewidth,
                              arrowfill=arrowfill,
-                             arrowfillcolor=arrowfillcolor)
+                             arrowfillcolor=arrowfillcolor,
+                             arrowdrawonline=arrowdrawonline)
         return
     # END: line()
 
@@ -3461,6 +3472,9 @@ class plotter:
                # If filling, use this fill color. 
                fillcolor       = 'black',
 
+               # If filling and column is not '', use as fill color
+               fillcolorfield  = '',
+
                # If filling, which fill style: solid, hline, vline, hvline,
                # dline1, dline2, dline12, circle, square, triangle, utriangle.
                fillstyle       = 'solid',
@@ -3526,6 +3540,8 @@ class plotter:
             sizeindex = rindex[sizefield]
         if labelfield != '':
             labelindex = rindex[labelfield]
+        if fillcolorfield != '':
+            fillcolorindex = rindex[fillcolorfield]
 
         # iterate...
         for r in table.query(where):
@@ -3539,6 +3555,9 @@ class plotter:
             if sizefield != '':
                 # non-empty -> sizefield should be used (i.e., ignore use(size))
                 size = float(r[sizeindex]) / float(sizediv)
+
+            if fillcolorfield != '':
+                fillcolor = r[fillcolorindex]
 
             if style == 'label': 
                 assert(labelfield != '')
@@ -4190,6 +4209,12 @@ class plotter:
                             # table column with xhi data
                             xhifield  = '',
 
+                            # table column to draw left tick
+                            ltickfield = '',
+
+                            # table column to draw right tick
+                            rtickfield = '',
+
                             # c-center u-upper l-lower n-none
                             align     = 'c',
 
@@ -4220,13 +4245,19 @@ class plotter:
             xlo = r[xloindex]
             xhi = r[xhiindex]
 
+            ltick, rtick = 1, 1
+            if ltickfield != '':
+                ltick = int(r[rindex[ltickfield]])
+            if rtickfield != '':
+                rtick = int(r[rindex[rtickfield]])
+
             yp   = drawable.translate('y', y)
             xlop = drawable.translate('x', xlo)
             xhip = drawable.translate('x', xhi)
 
             dw   = devwidth / 2.0
             hlw  = linewidth / 2.0
-            
+
             if align == 'c':
                 canvas.line(coord=[[xlop,yp],[xhip,yp]], linecolor=linecolor,
                             linewidth=linewidth)
@@ -4240,10 +4271,13 @@ class plotter:
                 abort('Bad alignment: %s; should be c, l, or r' % align)
 
             # vertical line between two end marks
-            canvas.line(coord=[[xhip,yp-dw],[xhip,yp+dw]], linecolor=linecolor,
+            if ltick == 1:
+                canvas.line(coord=[[xlop,yp-dw],[xlop,yp+dw]], linecolor=linecolor,
                         linewidth=linewidth)
-            canvas.line(coord=[[xlop,yp-dw],[xlop,yp+dw]], linecolor=linecolor,
+            if rtick == 1:
+                canvas.line(coord=[[xhip,yp-dw],[xhip,yp+dw]], linecolor=linecolor,
                         linewidth=linewidth)
+
         return
     # END: horizontalintervals()
 
